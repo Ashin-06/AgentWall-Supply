@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agentwall_supply.manifest import load_manifest
 from agentwall_supply.embeddings import analyze_vector_embeddings
 from agentwall_supply.sandbox import MCPToolSandbox
-from agentwall_supply.tbom import generate_tbom, verify_tbom
+from agentwall_supply.tbom import generate_tbom, verify_tbom, sign_tbom, verify_tbom_signature
 from agentwall_supply.scorer import score_server
 from agentwall_supply.drift import check_and_update_baseline
 from agentwall_supply.policy import evaluate_policy, export_sarif, DEFAULT_ENTERPRISE_POLICY
@@ -52,6 +52,20 @@ class TestAgentWallSupplyAdvanced(unittest.TestCase):
         verification = verify_tbom(tbom, manifest)
         self.assertTrue(verification["valid"])
         self.assertEqual(verification["verificationStatus"], "VERIFIED")
+
+    def test_tbom_hmac_signing_and_verification(self):
+        benign_path = os.path.join(SAMPLES_DIR, "benign_weather_server.json")
+        manifest = load_manifest(benign_path)
+        drift = check_and_update_baseline(manifest, update=False)
+        report = score_server(manifest, drift)
+        
+        tbom = generate_tbom(manifest, report)
+        secret_key = "enterprise_secret_key_12345"
+        signed_tbom = sign_tbom(tbom, secret_key)
+        
+        self.assertIn("signature", signed_tbom)
+        self.assertTrue(verify_tbom_signature(signed_tbom, secret_key))
+        self.assertFalse(verify_tbom_signature(signed_tbom, "wrong_secret_key"))
 
     def test_policy_evaluation_and_sarif(self):
         malicious_path = os.path.join(SAMPLES_DIR, "malicious_calculator_server.json")

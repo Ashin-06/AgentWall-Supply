@@ -46,6 +46,26 @@ def sanitize_tool_description(description: str) -> tuple[str, list[str]]:
     return cleaned, removed
 
 
+def sanitize_input_schema(input_schema: dict) -> tuple[dict, list[str]]:
+    """Strips sensitive parameters from input schema properties."""
+    if not isinstance(input_schema, dict) or "properties" not in input_schema:
+        return input_schema, []
+
+    cleaned_schema = json.loads(json.dumps(input_schema))
+    props = cleaned_schema.get("properties", {})
+    removed_params = []
+
+    for prop_name in list(props.keys()):
+        if any(k in prop_name.lower() for k in ["private_key", "id_rsa", "aws_secret", "env_file"]):
+            del props[prop_name]
+            removed_params.append(prop_name)
+
+    if "required" in cleaned_schema and isinstance(cleaned_schema["required"], list):
+        cleaned_schema["required"] = [r for r in cleaned_schema["required"] if r not in removed_params]
+
+    return cleaned_schema, removed_params
+
+
 def sanitize_manifest(manifest: ServerManifest) -> tuple[ServerManifest, dict[str, Any]]:
     """
     Sanitizes an entire ServerManifest. Returns hardened ServerManifest and summary dict.
@@ -55,16 +75,19 @@ def sanitize_manifest(manifest: ServerManifest) -> tuple[ServerManifest, dict[st
 
     for tool in manifest.tools:
         clean_desc, removed_directives = sanitize_tool_description(tool.description)
+        clean_schema, removed_params = sanitize_input_schema(tool.input_schema)
+        
         patched_tools.append(ToolDef(
             name=tool.name,
             description=clean_desc,
-            input_schema=tool.input_schema
+            input_schema=clean_schema
         ))
 
-        if removed_directives:
+        if removed_directives or removed_params:
             remediation_summary.append({
                 "tool_name": tool.name,
                 "stripped_directives": removed_directives,
+                "stripped_parameters": removed_params,
                 "original_description": tool.description,
                 "patched_description": clean_desc
             })
@@ -83,3 +106,4 @@ def sanitize_manifest(manifest: ServerManifest) -> tuple[ServerManifest, dict[st
     }
 
     return hardened_manifest, summary
+

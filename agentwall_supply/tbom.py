@@ -5,11 +5,37 @@ Tool Bill of Materials (Tool-BOM) generator and verifier for AgentWall-Supply.
 
 import json
 import hashlib
+import hmac
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 TBOM_SPEC_VERSION = "1.0.0"
+
+
+def sign_tbom(tbom_data: dict[str, Any], secret_key: str) -> dict[str, Any]:
+    """
+    Computes an HMAC-SHA256 cryptographic signature for a Tool-BOM manifest.
+    """
+    tbom_copy = json.loads(json.dumps(tbom_data))
+    tbom_copy.pop("signature", None)
+    payload_str = json.dumps(tbom_copy, sort_keys=True)
+    sig = hmac.new(secret_key.encode("utf-8"), payload_str.encode("utf-8"), hashlib.sha256).hexdigest()
+    tbom_copy["signature"] = f"hmac-sha256:{sig}"
+    return tbom_copy
+
+
+def verify_tbom_signature(tbom_data: dict[str, Any], secret_key: str) -> bool:
+    """
+    Verifies an HMAC-SHA256 signature on a Tool-BOM manifest.
+    """
+    if "signature" not in tbom_data:
+        return False
+    expected_sig = tbom_data["signature"].replace("hmac-sha256:", "")
+    recomputed = sign_tbom(tbom_data, secret_key)
+    actual_sig = recomputed["signature"].replace("hmac-sha256:", "")
+    return hmac.compare_digest(expected_sig, actual_sig)
+
 
 
 def generate_tbom(manifest, server_report) -> dict[str, Any]:
