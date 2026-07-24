@@ -17,6 +17,8 @@ from .tbom import generate_tbom
 from .sandbox import MCPToolSandbox
 from .report import report_to_dict
 from .policy import export_sarif
+from .patcher import sanitize_manifest
+
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -403,7 +405,11 @@ class AgentWallRequestHandler(BaseHTTPRequestHandler):
                 return self._send_json(200, generate_tbom(manifest, report))
             elif parsed.path == "/api/sarif":
                 return self._send_json(200, export_sarif(report))
+            elif parsed.path == "/api/patch":
+                hardened, summary = sanitize_manifest(manifest)
+                return self._send_json(200, summary)
             elif parsed.path == "/api/sandbox":
+
                 sandbox = MCPToolSandbox(manifest)
                 results = sandbox.run_sandbox_suite()
                 resp_data = {

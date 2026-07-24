@@ -24,6 +24,7 @@ from .server import run_server
 from .policy import evaluate_policy, export_sarif, DEFAULT_ENTERPRISE_POLICY
 from .prober import probe_live_mcp_server
 from .exporters import export_junit_xml, export_spdx_json
+from .patcher import sanitize_manifest
 
 
 def main(argv=None):
@@ -56,6 +57,12 @@ def main(argv=None):
     probe_cmd = sub.add_parser("probe", help="Probe a live MCP server process via stdio protocol and run audit")
     probe_cmd.add_argument("server_command", help="Executable command to spawn live MCP server process (e.g. 'python server.py')")
     probe_cmd.add_argument("--json", action="store_true", help="Output JSON report format")
+
+    # Subcommand: patch
+    patch_cmd = sub.add_parser("patch", help="Auto-remediate and patch malicious/dangerous tool descriptions in an MCP manifest")
+    patch_cmd.add_argument("manifest_path", help="Path to manifest JSON file")
+    patch_cmd.add_argument("--output", default=None, help="Save hardened manifest JSON to specified path")
+
 
 
     # Subcommand: sandbox
@@ -117,6 +124,31 @@ def main(argv=None):
             print(json.dumps(report_to_dict(report), indent=2))
         else:
             print(render_markdown(report))
+
+    elif args.command == "patch":
+        manifest = load_manifest(args.manifest_path)
+        hardened_manifest, summary = sanitize_manifest(manifest)
+        
+        patched_dict = {
+            "name": hardened_manifest.server_name,
+            "tools": [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "inputSchema": t.input_schema
+                }
+                for t in hardened_manifest.tools
+            ]
+        }
+        
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump(patched_dict, f, indent=2)
+            print(f"Hardened manifest successfully saved to {args.output}")
+            print(f"Auto-patched {summary['tools_patched_count']} tool(s).")
+        else:
+            print(json.dumps(summary, indent=2))
+
 
 
     elif args.command == "sandbox":
