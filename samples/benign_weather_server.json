@@ -1,0 +1,28 @@
+{
+  "name": "weather-mcp",
+  "tools": [
+    {
+      "name": "get_current_weather",
+      "description": "Returns the current temperature, conditions, and wind speed for a given city name.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {"type": "string", "description": "City name, e.g. 'Bengaluru'"}
+        },
+        "required": ["city"]
+      }
+    },
+    {
+      "name": "get_forecast",
+      "description": "Returns a 5-day weather forecast for a given latitude and longitude.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lat": {"type": "number"},
+          "lon": {"type": "number"}
+        },
+        "required": ["lat", "lon"]
+      }
+    }
+  ]
+}

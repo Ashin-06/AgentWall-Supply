@@ -1,0 +1,4 @@
+# mcp-guard has zero external dependencies — stdlib only (json, re, hashlib,
+# math, argparse, dataclasses). This is intentional: a security scanner
+# should not itself add supply-chain risk. Requires Python 3.10+ for the
+# `str | None` union syntax used in manifest.py.

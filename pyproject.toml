@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentwall-supply"
+version = "2.0.0"
+description = "AgentWall-Supply — AI Supply Chain Security, Vector Semantics & Tool-BOM Assurance Suite"
+readme = "README.md"
+authors = [
+  { name = "Ashin-06" }
+]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Security",
+    "Topic :: Software Development :: Build Tools"
+]
+dependencies = []
+
+[tool.setuptools]
+packages = ["agentwall_supply"]
+
+[project.scripts]
+agentwall-supply = "agentwall_supply.cli:main"
+agentwall = "agentwall_supply.cli:main"

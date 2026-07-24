@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.agentwall_baseline.json
+.mcpguard_baseline.json
+*.sarif
+*.log
+.DS_Store
