@@ -1,0 +1,40 @@
+name: AgentWall-Supply Security Audit
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  audit:
+    name: MCP Supply Chain & Tool-BOM Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies & AgentWall-Supply
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Run Test Suite
+      run: |
+        python -m unittest discover -s tests -v
+
+    - name: Scan Sample Manifests & Generate SARIF Report
+      run: |
+        agentwall-supply scan samples/malicious_calculator_server.json --sarif results.sarif || true
+
+    - name: Upload SARIF Report to GitHub Security Code Scanning
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: results.sarif
+      if: always()

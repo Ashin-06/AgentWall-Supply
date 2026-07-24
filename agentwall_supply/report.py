@@ -4,11 +4,38 @@ Markdown and JSON report generator for AgentWall-Supply.
 """
 
 from .scorer import ServerReport
+from .aivss import calculate_aivss
 
 _TIER_EMOJI = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
 
 
 def report_to_dict(report: ServerReport) -> dict:
+    tools_output = []
+    for tr in report.tool_reports:
+        aivss = calculate_aivss(tr)
+        tools_output.append({
+            "name": tr.tool.name,
+            "score": tr.score,
+            "tier": tr.tier,
+            "aivss": {
+                "score": aivss.score,
+                "severity": aivss.severity,
+                "vector_string": aivss.vector_string,
+            },
+            "injection_findings": [
+                {"label": f.pattern_label, "severity": f.severity, "snippet": f.matched_snippet}
+                for f in tr.semantic.injection_findings
+            ],
+            "permission_categories": sorted(tr.permissions.categories),
+            "name_desc_similarity": round(tr.semantic.name_desc_similarity, 3),
+            "mismatch_flag": tr.semantic.mismatch_flag,
+            "drift_flag": tr.drift_flag,
+            "sandbox_violations": [
+                {"type": v.violation_type, "severity": v.severity, "details": v.details}
+                for v in (tr.sandbox_result.violations if tr.sandbox_result else [])
+            ],
+        })
+
     return {
         "server_name": report.server_name,
         "score": report.score,
@@ -19,27 +46,9 @@ def report_to_dict(report: ServerReport) -> dict:
             "removed_tools": report.drift.removed_tools,
             "changed_tools": report.drift.changed_tools,
         },
-        "tools": [
-            {
-                "name": tr.tool.name,
-                "score": tr.score,
-                "tier": tr.tier,
-                "injection_findings": [
-                    {"label": f.pattern_label, "severity": f.severity, "snippet": f.matched_snippet}
-                    for f in tr.semantic.injection_findings
-                ],
-                "permission_categories": sorted(tr.permissions.categories),
-                "name_desc_similarity": round(tr.semantic.name_desc_similarity, 3),
-                "mismatch_flag": tr.semantic.mismatch_flag,
-                "drift_flag": tr.drift_flag,
-                "sandbox_violations": [
-                    {"type": v.violation_type, "severity": v.severity, "details": v.details}
-                    for v in (tr.sandbox_result.violations if tr.sandbox_result else [])
-                ],
-            }
-            for tr in report.tool_reports
-        ],
+        "tools": tools_output,
     }
+
 
 
 def render_markdown(report: ServerReport) -> str:
