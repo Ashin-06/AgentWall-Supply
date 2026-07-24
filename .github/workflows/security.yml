@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   audit:
     name: MCP Supply Chain & Tool-BOM Security Audit
@@ -29,12 +33,17 @@ jobs:
       run: |
         python -m unittest discover -s tests -v
 
-    - name: Scan Sample Manifests & Generate SARIF Report
+    - name: Verify AgentWall-Supply CLI Commands
       run: |
+        agentwall-supply scan samples/benign_weather_server.json
+        agentwall-supply sandbox samples/covert_exfil_server.json
+        agentwall-supply tbom samples/benign_weather_server.json --output tool_bom.json
+        agentwall-supply tbom samples/benign_weather_server.json --verify tool_bom.json
         agentwall-supply scan samples/malicious_calculator_server.json --sarif results.sarif || true
 
     - name: Upload SARIF Report to GitHub Security Code Scanning
       uses: github/codeql-action/upload-sarif@v3
+      continue-on-error: true
       with:
         sarif_file: results.sarif
       if: always()

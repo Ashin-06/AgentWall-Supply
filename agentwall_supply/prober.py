@@ -1,10 +1,9 @@
 """
 prober.py
-Live MCP Server Stdio Protocol Prober for AgentWall-Supply.
+Live MCP Server Stdio Protocol & Remote HTTP/HTTPS Prober for AgentWall-Supply.
 
-Spawns a live MCP server process over standard I/O, performs the JSON-RPC 2.0
-handshake (`initialize` & `tools/list`), captures the live tool manifest in real-time,
-and passes it to the AgentWall-Supply audit engine.
+Supports auditing both local stdio MCP server processes and remote HTTP/SSE
+MCP microservices in real-world production environments.
 """
 
 import json
@@ -12,16 +11,64 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
+import urllib.parse
 from typing import Any
 
 from .manifest import ServerManifest, ToolDef
 
 
-def probe_live_mcp_server(command_str: str, timeout_seconds: float = 10.0) -> ServerManifest:
+def probe_live_mcp_server(target: str, timeout_seconds: float = 10.0) -> ServerManifest:
     """
-    Connects to a live MCP server process via stdio JSON-RPC 2.0, performs initialization,
-    sends `tools/list`, and returns a ServerManifest.
+    Probes an MCP server target.
+    - If target starts with 'http://' or 'https://', performs HTTP POST tools/list request.
+    - Otherwise, spawns a local stdio process command and performs JSON-RPC 2.0 handshake.
     """
+    if target.startswith("http://") or target.startswith("https://"):
+        return _probe_http_mcp_server(target, timeout_seconds)
+    else:
+        return _probe_stdio_mcp_server(target, timeout_seconds)
+
+
+def _probe_http_mcp_server(url: str, timeout_seconds: float) -> ServerManifest:
+    """Probes a remote HTTP/SSE MCP server endpoint."""
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "AgentWall-Supply/2.0.0 (AI Security Auditor)"
+    }
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {}
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            resp_bytes = resp.read()
+            resp_data = json.loads(resp_bytes.decode("utf-8"))
+            
+            raw_tools = resp_data.get("result", {}).get("tools", [])
+            server_name = resp_data.get("result", {}).get("serverInfo", {}).get("name", urllib.parse.urlparse(url).netloc)
+
+            tools = [
+                ToolDef(
+                    name=t.get("name", "<unnamed>"),
+                    description=t.get("description", "") or "",
+                    input_schema=t.get("inputSchema", {}) or {},
+                )
+                for t in raw_tools
+            ]
+
+            return ServerManifest(server_name=server_name, tools=tools)
+    except Exception as e:
+        raise RuntimeError(f"Failed to probe remote HTTP MCP server at {url}: {str(e)}")
+
+
+def _probe_stdio_mcp_server(command_str: str, timeout_seconds: float) -> ServerManifest:
+    """Probes a local stdio MCP server process."""
     proc = subprocess.Popen(
         command_str,
         shell=True,
@@ -33,7 +80,6 @@ def probe_live_mcp_server(command_str: str, timeout_seconds: float = 10.0) -> Se
     )
 
     try:
-        # Step 1: Send MCP JSON-RPC 2.0 Initialize Request
         init_req = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -47,7 +93,6 @@ def probe_live_mcp_server(command_str: str, timeout_seconds: float = 10.0) -> Se
         proc.stdin.write(json.dumps(init_req) + "\n")
         proc.stdin.flush()
 
-        # Read initialize response
         line = proc.stdout.readline()
         if not line:
             raise RuntimeError(f"Server exited immediately or produced no output when executed: {command_str}")
@@ -55,12 +100,10 @@ def probe_live_mcp_server(command_str: str, timeout_seconds: float = 10.0) -> Se
         init_resp = json.loads(line)
         server_name = init_resp.get("result", {}).get("serverInfo", {}).get("name", command_str)
 
-        # Step 2: Send initialized notification
         init_notif = {"jsonrpc": "2.0", "method": "notifications/initialized"}
         proc.stdin.write(json.dumps(init_notif) + "\n")
         proc.stdin.flush()
 
-        # Step 3: Send tools/list request
         tools_req = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
         proc.stdin.write(json.dumps(tools_req) + "\n")
         proc.stdin.flush()

@@ -1,0 +1,32 @@
+{
+  "name": "@modelcontextprotocol/server-github",
+  "tools": [
+    {
+      "name": "create_issue",
+      "description": "Create a new issue in a GitHub repository with title and body",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string" },
+          "repo": { "type": "string" },
+          "title": { "type": "string" },
+          "body": { "type": "string" }
+        },
+        "required": ["owner", "repo", "title"]
+      }
+    },
+    {
+      "name": "get_issue",
+      "description": "Retrieve issue details by issue number in a GitHub repository",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "owner": { "type": "string" },
+          "repo": { "type": "string" },
+          "issue_number": { "type": "number" }
+        },
+        "required": ["owner", "repo", "issue_number"]
+      }
+    }
+  ]
+}
