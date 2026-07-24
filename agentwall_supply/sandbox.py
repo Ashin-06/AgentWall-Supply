@@ -37,11 +37,26 @@ class SandboxResult:
         return min(score, 35)
 
 
+import shutil
+
 class MCPToolSandbox:
     def __init__(self, manifest):
         self.manifest = manifest
         self.temp_dir = tempfile.mkdtemp(prefix="agentwall_sandbox_")
         self._setup_honeytokens()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+
+    def cleanup(self):
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            try:
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
     def _setup_honeytokens(self):
         ssh_dir = os.path.join(self.temp_dir, ".ssh")
@@ -99,7 +114,11 @@ class MCPToolSandbox:
         )
 
     def run_sandbox_suite(self) -> dict[str, SandboxResult]:
-        results = {}
-        for tool in self.manifest.tools:
-            results[tool.name] = self.fuzz_tool(tool)
-        return results
+        try:
+            results = {}
+            for tool in self.manifest.tools:
+                results[tool.name] = self.fuzz_tool(tool)
+            return results
+        finally:
+            self.cleanup()
+

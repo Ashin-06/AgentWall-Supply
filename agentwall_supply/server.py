@@ -376,7 +376,12 @@ class AgentWallRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         content_length = int(self.headers.get("Content-Length", 0))
+        
+        if content_length > 10_000_000:
+            return self._send_json(413, {"error": "Payload Too Large (Max 10MB)"})
+            
         post_data = self.rfile.read(content_length)
+
 
         try:
             raw_json = json.loads(post_data.decode("utf-8"))

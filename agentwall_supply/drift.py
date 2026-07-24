@@ -27,8 +27,12 @@ class DriftResult:
 def _load_baseline(path: str) -> dict:
     if not os.path.exists(path):
         return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
 
 
 def _save_baseline(path: str, data: dict) -> None:
