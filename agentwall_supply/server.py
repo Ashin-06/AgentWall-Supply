@@ -10,7 +10,7 @@ import tempfile
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-from .manifest import load_manifest
+from .manifest import load_manifest, parse_manifest
 from .drift import check_and_update_baseline
 from .scorer import score_server
 from .tbom import generate_tbom
@@ -333,12 +333,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             switchTab('tbom');
         }
 
-        function switchTab(name) {
+        function switchTab(name, ev) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             ['audit', 'sandbox', 'tbom'].forEach(t => {
-                document.getElementById('tab-' + t).style.display = t === name ? 'block' : 'none';
+                const el = document.getElementById('tab-' + t);
+                if (el) el.style.display = t === name ? 'block' : 'none';
             });
-            event.target.classList.add('active');
+            const btn = ev ? ev.target : document.querySelector(`.tab-btn[onclick*="${name}"]`);
+            if (btn) btn.classList.add('active');
         }
 
         document.getElementById("presetSelect").value = "benign";
@@ -390,12 +392,8 @@ class AgentWallRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._send_json(400, {"error": f"Invalid JSON payload: {str(e)}"})
 
-        temp_file = os.path.join(tempfile.gettempdir(), f"agentwall_req_{os.getpid()}.json")
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(raw_json, f)
-
         try:
-            manifest = load_manifest(temp_file)
+            manifest = parse_manifest(raw_json)
             drift = check_and_update_baseline(manifest, update=False)
             report = score_server(manifest, drift)
 
@@ -409,7 +407,6 @@ class AgentWallRequestHandler(BaseHTTPRequestHandler):
                 hardened, summary = sanitize_manifest(manifest)
                 return self._send_json(200, summary)
             elif parsed.path == "/api/sandbox":
-
                 sandbox = MCPToolSandbox(manifest)
                 results = sandbox.run_sandbox_suite()
                 resp_data = {
@@ -429,10 +426,9 @@ class AgentWallRequestHandler(BaseHTTPRequestHandler):
                 return self._send_json(200, resp_data)
             else:
                 return self._send_json(404, {"error": "API route not found"})
+        except Exception as e:
+            return self._send_json(400, {"error": f"Failed to process manifest: {str(e)}"})
 
-        finally:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
 
 
 def run_server(port: int = 8500):

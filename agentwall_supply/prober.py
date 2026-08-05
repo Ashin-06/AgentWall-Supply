@@ -8,14 +8,36 @@ MCP microservices in real-world production environments.
 
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import urllib.parse
 from typing import Any
 
 from .manifest import ServerManifest, ToolDef
+
+
+def _readline_with_timeout(stream, timeout: float) -> str:
+    q: queue.Queue = queue.Queue()
+    def _target():
+        try:
+            line = stream.readline()
+            q.put(line)
+        except Exception as e:
+            q.put(e)
+    t = threading.Thread(target=_target, daemon=True)
+    t.start()
+    t.join(timeout=timeout)
+    if t.is_alive():
+        raise TimeoutError(f"Timed out after {timeout} seconds waiting for stdio output from server process")
+    res = q.get_nowait()
+    if isinstance(res, Exception):
+        raise res
+    return res
+
 
 
 def probe_live_mcp_server(target: str, timeout_seconds: float = 10.0) -> ServerManifest:
@@ -93,7 +115,7 @@ def _probe_stdio_mcp_server(command_str: str, timeout_seconds: float) -> ServerM
         proc.stdin.write(json.dumps(init_req) + "\n")
         proc.stdin.flush()
 
-        line = proc.stdout.readline()
+        line = _readline_with_timeout(proc.stdout, timeout_seconds)
         if not line:
             raise RuntimeError(f"Server exited immediately or produced no output when executed: {command_str}")
 
@@ -108,7 +130,8 @@ def _probe_stdio_mcp_server(command_str: str, timeout_seconds: float) -> ServerM
         proc.stdin.write(json.dumps(tools_req) + "\n")
         proc.stdin.flush()
 
-        tools_line = proc.stdout.readline()
+        tools_line = _readline_with_timeout(proc.stdout, timeout_seconds)
+
         if not tools_line:
             raise RuntimeError(f"Server closed connection during tools/list request: {command_str}")
 

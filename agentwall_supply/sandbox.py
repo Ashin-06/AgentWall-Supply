@@ -72,6 +72,9 @@ class MCPToolSandbox:
         violations = []
         schema = tool_def.input_schema
         properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
+        if not isinstance(properties, dict):
+            properties = {}
+
         
         for prop_name, prop_spec in properties.items():
             prop_desc = str(prop_spec.get("description", "")) if isinstance(prop_spec, dict) else ""

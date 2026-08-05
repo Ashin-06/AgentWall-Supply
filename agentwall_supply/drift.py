@@ -36,8 +36,12 @@ def _load_baseline(path: str) -> dict:
 
 
 def _save_baseline(path: str, data: dict) -> None:
+    dirname = os.path.dirname(path)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
+
 
 
 def check_and_update_baseline(manifest: ServerManifest, path: str = DEFAULT_BASELINE_PATH,
