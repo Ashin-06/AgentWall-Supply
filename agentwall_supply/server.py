@@ -296,20 +296,37 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             tierEl.className = "tier-badge tier-" + data.tier;
 
             const tbody = document.getElementById("toolsBody");
-            tbody.innerHTML = "";
+            tbody.replaceChildren();
             data.tools.forEach(t => {
                 const tr = document.createElement("tr");
-                let tagsHtml = "";
-                t.injection_findings.forEach(f => { tagsHtml += `<span class="finding-tag">${f.label}</span>`; });
-                t.permission_categories.forEach(c => { tagsHtml += `<span class="scope-tag">scope:${c}</span>`; });
-                if (!tagsHtml) tagsHtml = `<span style="color: var(--text-muted)">Clean</span>`;
-
-                tr.innerHTML = `
-                    <td style="font-family: 'Fira Code', monospace; font-weight: 600;">${t.name}</td>
-                    <td style="font-weight: 700;">${t.score}/100</td>
-                    <td><span class="tier-badge tier-${t.tier}" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">${t.tier}</span></td>
-                    <td>${tagsHtml}</td>
-                `;
+                const name = document.createElement("td");
+                name.style.fontFamily = "'Fira Code', monospace";
+                name.style.fontWeight = "600";
+                name.textContent = t.name;
+                const score = document.createElement("td");
+                score.style.fontWeight = "700";
+                score.textContent = `${t.score}/100`;
+                const tierCell = document.createElement("td");
+                const tier = document.createElement("span");
+                tier.className = "tier-badge tier-" + t.tier;
+                tier.style.padding = "0.2rem 0.5rem";
+                tier.style.fontSize = "0.7rem";
+                tier.textContent = t.tier;
+                tierCell.appendChild(tier);
+                const findings = document.createElement("td");
+                function addTag(text, className) {
+                    const tag = document.createElement("span");
+                    tag.className = className;
+                    tag.textContent = text;
+                    findings.appendChild(tag);
+                }
+                t.injection_findings.forEach(f => addTag(f.label, "finding-tag"));
+                t.permission_categories.forEach(c => addTag(`scope:${c}`, "scope-tag"));
+                if (!findings.childNodes.length) {
+                    addTag("Clean", "");
+                    findings.firstChild.style.color = "var(--text-muted)";
+                }
+                tr.append(name, score, tierCell, findings);
                 tbody.appendChild(tr);
             });
             switchTab('audit');
@@ -379,7 +396,13 @@ class AgentWallRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        content_length = int(self.headers.get("Content-Length", 0))
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            return self._send_json(400, {"error": "Invalid Content-Length"})
+
+        if content_length < 0:
+            return self._send_json(400, {"error": "Invalid Content-Length"})
         
         if content_length > 10_000_000:
             return self._send_json(413, {"error": "Payload Too Large (Max 10MB)"})

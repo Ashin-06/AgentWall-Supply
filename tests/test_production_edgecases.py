@@ -98,6 +98,17 @@ class TestProductionEdgeCases(unittest.TestCase):
         line = _readline_with_timeout(stream, timeout=1.0)
         self.assertEqual(line, "hello world\n")
 
+    def test_invalid_content_lengths_are_rejected_without_reading(self):
+        for length, expected in (("invalid", 400), ("-1", 400), ("10000001", 413)):
+            with self.subTest(length=length):
+                request = MockRequest(b"{}")
+                request.headers["Content-Length"] = length
+                handler = request.make_handler()
+                handler.do_POST()
+                self.assertEqual(handler.status_code, expected)
+                self.assertEqual(request.rfile.tell(), 0)
+                self.assertIn("error", json.loads(request.wfile.getvalue()))
+
 
 
 if __name__ == "__main__":
