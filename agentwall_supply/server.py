@@ -153,7 +153,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         .tab-btn.active { color: var(--accent-cyan); background: rgba(56, 189, 248, 0.1); }
 
         .json-view { font-family: 'Fira Code', monospace; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 1rem; border-radius: 10px; overflow-x: auto; max-height: 400px; }
-    </style>
+    
+    /* Keep wide content inside the page at any screen size */
+    *, *::before, *::after { box-sizing: border-box; min-width: 0; }
+    img, svg, canvas, video { max-width: 100%; }
+    input, select, textarea { max-width: 100%; }
+    table, pre { display: block; max-width: 100%; overflow-x: auto; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    @media (max-width: 760px) {
+      [style*="grid-template-columns"], .grid, .grid-2, .grid-3, .grid-4, .kpis, .kpi-grid, .form-row, .row, .cols, main, .layout {
+        grid-template-columns: minmax(0, 1fr) !important;
+      }
+    }
+    .btn-bar, .form-row, .tabs, .tab-group { flex-wrap: wrap; }
+</style>
 </head>
 <body>
     <header>
