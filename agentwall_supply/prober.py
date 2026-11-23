@@ -9,6 +9,8 @@ MCP microservices in real-world production environments.
 import json
 import os
 import queue
+import shlex
+import shutil
 import subprocess
 import sys
 import threading
@@ -91,9 +93,14 @@ def _probe_http_mcp_server(url: str, timeout_seconds: float) -> ServerManifest:
 
 def _probe_stdio_mcp_server(command_str: str, timeout_seconds: float) -> ServerManifest:
     """Probes a local stdio MCP server process."""
+    # no shell: the command is split into argv, so `;`, `|` or `$(...)` in it are never interpreted
+    argv = shlex.split(command_str, posix=os.name != "nt")
+    argv = [a[1:-1] if len(a) > 1 and a[0] == a[-1] and a[0] in "\"'" else a for a in argv]
+    if not argv:
+        raise ValueError("empty MCP server command")
+    argv[0] = shutil.which(argv[0]) or argv[0]  # npx -> npx.cmd on Windows
     proc = subprocess.Popen(
-        command_str,
-        shell=True,
+        argv,
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
